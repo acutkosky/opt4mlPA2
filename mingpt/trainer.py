@@ -72,6 +72,7 @@ class Trainer:
 
             losses = []
             pbar = tqdm(enumerate(loader), total=len(loader)) if is_train else enumerate(loader)
+            running_loss = 0.0
             for it, (x, y) in pbar:
 
                 # place data on the correct device
@@ -110,22 +111,18 @@ class Trainer:
 
                     # report progress
                     pbar.set_description(f"epoch {epoch+1} iter {it}: train loss {loss.item():.5f}. lr {lr:e}")
+                    running_loss += (loss.item() - running_loss)/(it+1.0)
 
             if not is_train:
                 test_loss = float(np.mean(losses))
                 logger.info("test loss: %f", test_loss)
                 return test_loss
+            else:
+                return running_loss
 
         best_loss = float('inf')
         self.tokens = 0 # counter used for learning rate decay
         for epoch in range(config.max_epochs):
 
-            run_epoch('train')
-            if self.test_dataset is not None:
-                test_loss = run_epoch('test')
-
-            # supports early stopping based on the test loss, or just save always if no test set is provided
-            good_model = self.test_dataset is None or test_loss < best_loss
-            if self.config.ckpt_path is not None and good_model:
-                best_loss = test_loss
-                self.save_checkpoint()
+            train_loss = run_epoch('train')
+        return train_loss
